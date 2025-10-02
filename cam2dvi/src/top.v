@@ -114,16 +114,19 @@ module top #(
     assign state_led[1] = ~DDR_pll_lock; 
     assign state_led[0] = ~init_calib_complete; //DDR3初始化指示灯
 
-    // ==================== 畸变校正相关信号 ====================
-    wire [31:0] camera_param_0, camera_param_1, camera_param_2, camera_param_3;
-    wire [31:0] camera_param_4, camera_param_5, camera_param_6, camera_param_7;
-    reg [2:0] param_addr;
-    reg [31:0] param_data;
-    reg param_wr_en;
+    // ==================== Video Warping 畸变校正信号 ====================
+    // 视频处理流程：Camera -> Frame Buffer -> Video Warping -> HDMI
+    // Frame Buffer输出: off0_syn_data[31:0], off0_syn_de, syn_off0_vs, syn_off0_hs  
+    // Video Warping: 8位RGB输入输出，需要格式转换
+    wire [7:0] warped_r, warped_g, warped_b;       // 8位RGB输出分量
+    wire [15:0] warped_data;                       // 转换为RGB565格式
+    wire warped_de, warped_vs, warped_hs;
     
-    // 畸变校正输出信号
-    wire [15:0] corrected_data;
-    wire corrected_de, corrected_vs, corrected_hs;
+    // 调试控制：可以选择旁路或校正模式
+    parameter ENABLE_WARPING = 1'b1;  // 1=启用畸变校正, 0=旁路模式
+    
+    // 8位RGB转换为RGB565格式（R:5bit, G:6bit, B:5bit）
+    assign warped_data = {warped_r[7:3], warped_g[7:2], warped_b[7:3]};
     
     wire [15:0] HActive;
     wire HA_valid;
@@ -233,78 +236,10 @@ module top #(
     	.de_o                       (cmos_16bit_clk           )
     );
 
-    // ==================== 相机参数模块 ====================
-    camera_parameters camera_params_inst (
-        .clk(clk),
-        .rst_n(rst_n),
-        .param_addr(param_addr),
-        .param_data(param_data),
-        .wr_en(param_wr_en),
-        .param0(camera_param_0),
-        .param1(camera_param_1),
-        .param2(camera_param_2),
-        .param3(camera_param_3),
-        .param4(camera_param_4),
-        .param5(camera_param_5),
-        .param6(camera_param_6),
-        .param7(camera_param_7)
-    );
-    
-    // 相机参数初始化
-    initial begin
-        param_wr_en = 1'b1;
-        param_addr = 0; param_data = 32'h00000578; // fx = 1400
-        #10 param_addr = 1; param_data = 32'h00000578; // fy = 1400
-        #10 param_addr = 2; param_data = 32'h00000280; // cx = 640
-        #10 param_addr = 3; param_data = 32'h000001C2; // cy = 450
-        #10 param_addr = 4; param_data = 32'hFFFFFC18; // k1 = -0.1
-        #10 param_addr = 5; param_data = 32'h00000064; // k2 = 0.01
-        #10 param_addr = 6; param_data = 32'h00000000; // k3 = 0
-        #10 param_addr = 7; param_data = 32'h00000000; // 保留
-        #50 param_wr_en = 1'b0;
-    end
-
     //The video output timing generator and generate a frame read data request
     //输出
     wire out_de;
     wire [9:0] lcd_x,lcd_y;
-
-    // ==================== 畸变校正模块 ====================
-    distortion_correction #(
-        .DATA_WIDTH(16),                            // 数据位宽：16位RGB565格式
-        .H_RES(1280),                               // 水平分辨率：1280像素
-        .V_RES(720)                                 // 垂直分辨率：720像素
-    ) distortion_correction_inst (
-        // 时钟和复位信号
-        .clk(video_clk),                            // 视频像素时钟
-        .rst_n(rst_n),                              // 复位信号（低有效）
-        
-        // 相机内参（来自相机参数模块）
-        .fx(camera_param_0[15:0]),                  // 焦距fx（像素单位）
-        .fy(camera_param_1[15:0]),                  // 焦距fy（像素单位）
-        .cx(camera_param_2[15:0]),                  // 光心cx（像素单位）
-        .cy(camera_param_3[15:0]),                  // 光心cy（像素单位）
-        .k1(camera_param_4[15:0]),                  // 径向畸变系数k1
-        .k2(camera_param_5[15:0]),                  // 径向畸变系数k2
-        .k3(camera_param_6[15:0]),                  // 径向畸变系数k3
-        .valid_params(init_calib_complete),         // 参数有效标志（DDR3初始化完成）
-        
-        // 输入视频接口（来自帧缓存）
-        .vin_data(off0_syn_data),                   // 输入视频数据（16位RGB565）
-        .vin_de(off0_syn_de),                       // 输入数据有效信号
-        .vin_vs(syn_off0_vs),                       // 输入垂直同步信号
-        .vin_hs(syn_off0_hs),                       // 输入水平同步信号
-        
-        // 输出视频接口（校正后的视频）
-        .vout_data(corrected_data),                 // 输出校正后的视频数据（16位RGB565）
-        .vout_de(corrected_de),                     // 输出数据有效信号
-        .vout_vs(corrected_vs),                     // 输出垂直同步信号
-        .vout_hs(corrected_hs),                     // 输出水平同步信号
-        
-        // 像素坐标接口（来自时序生成器）
-        .pixel_x(lcd_x),                            // 当前像素X坐标
-        .pixel_y(lcd_y)                             // 当前像素Y坐标
-    );
 
 
     // ==================== VGA时序生成模块 ====================
@@ -435,6 +370,43 @@ module top #(
     );
 
     //==============================================================================
+    // Video Warping IP - 畸变校正模块（按照Gowin IP信号表）
+    // 使用Gowin Video Warping IP核
+    // 信号映射说明:
+    // - clk: 像素时钟（74.25MHz for 720p@60Hz）
+    // - clk_2: 计算时钟（通常为像素时钟的2倍，这里暂用相同时钟）
+    // - Hsync_in: 实际上是数据有效信号（DE），不是行同步
+    // - RGB输入输出都是8位，需要与RGB565格式进行转换
+    //   输入：RGB565 -> 8位RGB（低位补0）
+    //   输出：8位RGB -> RGB565（取高位）
+    Video_Warping_Top u_video_warping (
+        // 时钟和复位
+        .clk                (video_clk        ),      // 输入时钟信号，作为像素时钟
+        .clk_2              (video_clk        ),      // 输入时钟信号，作为计算时钟，为像素时钟的2倍（这里用相同时钟）
+        .rstn               (init_calib_complete),    // 复位信号，低电平有效
+        
+        // 输入视频流（RGB565转8位RGB）
+        .Vsync_in           (syn_off0_vs      ),      // 输入场同步信号
+        .Hsync_in           (off0_syn_de      ),      // 输入图像数据有效信号（对应DE信号）
+        .R_din              ({off0_syn_data[15:11], 3'b000}), // R分量：5位扩展到8位
+        .G_din              ({off0_syn_data[10:5], 2'b00}),   // G分量：6位扩展到8位  
+        .B_din              ({off0_syn_data[4:0], 3'b000}),   // B分量：5位扩展到8位
+        
+        // 写信号和地址（用于配置多项式系数）
+        .wr                 (1'b0            ),       // 写信号（暂时不写入配置）
+        .waddr              (16'h0           ),       // 写地址信号
+        .wdata              (32'h0           ),       // 写数据信号
+        
+        // 输出视频流  
+        .Vsync_out          (warped_vs       ),       // 输出场同步信号
+        .Hsync_out          (warped_hs       ),       // 输出行同步信号
+        .DE_out             (warped_de       ),       // 输出有效信号，高电平时表示此时输出信号为有效位
+        .R_dout             (warped_r        ),       // 输出图像数据信号 - R分量（5位）
+        .G_dout             (warped_g        ),       // 输出图像数据信号 - G分量（6位）
+        .B_dout             (warped_b        )        // 输出图像数据信号 - B分量（5位）
+    );
+
+    //==============================================================================
     //TMDS TX(HDMI4)
     wire serial_clk;
     wire hdmi4_rst_n;
@@ -457,12 +429,12 @@ module top #(
     wire [7:0] dvi0_rgb_b  ;
 
     assign dvi0_rgb_clk = video_clk;
-    assign dvi0_rgb_vs  = corrected_vs;
-    assign dvi0_rgb_hs  = corrected_hs;
-    assign dvi0_rgb_de  = corrected_de;
-    assign dvi0_rgb_r   = {corrected_data[15:11], 3'd0};  // 5位转8位
-    assign dvi0_rgb_g   = {corrected_data[10:5], 2'd0};   // 6位转8位
-    assign dvi0_rgb_b   = {corrected_data[4:0], 3'd0};    // 5位转8位
+    assign dvi0_rgb_vs  = warped_vs;
+    assign dvi0_rgb_hs  = warped_hs;
+    assign dvi0_rgb_de  = warped_de;
+    assign dvi0_rgb_r   = {warped_data[15:11], 3'd0};  // 5位转8位
+    assign dvi0_rgb_g   = {warped_data[10:5], 2'd0};   // 6位转8位
+    assign dvi0_rgb_b   = {warped_data[4:0], 3'd0};    // 5位转8位
 
     DVI_TX_Top DVI_TX_Top_inst0
     (
