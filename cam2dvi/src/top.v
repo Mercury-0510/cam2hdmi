@@ -40,6 +40,8 @@ module top #(
     output [2:0]           tmds_d_p_0
 );
     
+    parameter ENABLE_WARPING = 1'b0;  // 1=启用畸变校正, 0=旁路模式
+
     assign i2c_sel = 'b101;
 
 // ==================== 参数定义 ====================
@@ -123,10 +125,8 @@ module top #(
     wire [15:0] warped_data;                       // 转换为RGB565格式
     wire warped_de, warped_vs, warped_hs;
     
-    // 调试控制：可以选择旁路或校正模式
-    parameter ENABLE_WARPING = 1'b1;  // 1=启用畸变校正, 0=旁路模式
-    
     // 8位RGB转换为RGB565格式（R:5bit, G:6bit, B:5bit）
+    // 注意：这个warped_data在旁路模式下不使用
     assign warped_data = {warped_r[7:3], warped_g[7:2], warped_b[7:3]};
     
     // HDMI复位信号（需要TMDS PLL锁定）
@@ -432,12 +432,17 @@ module top #(
     wire [7:0] dvi0_rgb_b  ;
 
     assign dvi0_rgb_clk = video_clk;
-    assign dvi0_rgb_vs  = warped_vs;
-    assign dvi0_rgb_hs  = warped_hs;
-    assign dvi0_rgb_de  = warped_de;
-    assign dvi0_rgb_r   = {warped_data[15:11], 3'd0};  // 5位转8位
-    assign dvi0_rgb_g   = {warped_data[10:5], 2'd0};   // 6位转8位
-    assign dvi0_rgb_b   = {warped_data[4:0], 3'd0};    // 5位转8位
+    
+    // 选择是否启用Video Warping（根据ENABLE_WARPING参数）
+    assign dvi0_rgb_vs  = ENABLE_WARPING ? warped_vs : syn_off0_vs;
+    assign dvi0_rgb_hs  = ENABLE_WARPING ? warped_hs : syn_off0_hs;
+    assign dvi0_rgb_de  = ENABLE_WARPING ? warped_de : off0_syn_de;
+    
+    // Video Warping输出已经是8位RGB，直接使用
+    // 旁路模式时从帧缓存输出的RGB565转换为8位RGB
+    assign dvi0_rgb_r   = ENABLE_WARPING ? warped_r : {off0_syn_data[15:11], 3'd0};
+    assign dvi0_rgb_g   = ENABLE_WARPING ? warped_g : {off0_syn_data[10:5], 2'd0};
+    assign dvi0_rgb_b   = ENABLE_WARPING ? warped_b : {off0_syn_data[4:0], 3'd0};
 
     DVI_TX_Top DVI_TX_Top_inst0
     (
