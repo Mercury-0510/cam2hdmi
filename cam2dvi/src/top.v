@@ -75,7 +75,8 @@ module top #(
     wire                   TMDS_DDR_pll_lock  ;
     wire                   pll_stop           ;
 
-    wire                        video_clk;  //video pixel clock
+    wire                        video_clk;     //video pixel clock (74.25MHz)
+    wire                        video_clk_2x;  //video clock x2 for warping (148.5MHz)
     wire                      syn_off0_vs;
     wire                      syn_off0_hs;
 
@@ -127,6 +128,10 @@ module top #(
     
     // 8位RGB转换为RGB565格式（R:5bit, G:6bit, B:5bit）
     assign warped_data = {warped_r[7:3], warped_g[7:2], warped_b[7:3]};
+    
+    // HDMI复位信号（需要TMDS PLL锁定）
+    wire hdmi4_rst_n;
+    assign hdmi4_rst_n = rst_n & TMDS_DDR_pll_lock;
     
     wire [15:0] HActive;
     wire HA_valid;
@@ -257,7 +262,7 @@ module top #(
     ) vga_timing_m0(
         // 时钟和复位信号
         .clk (video_clk),                           // 视频像素时钟
-        .rst (~rst_n),                              // 复位信号（高有效）
+        .rst (~hdmi4_rst_n),                        // 复位信号（高有效），使用HDMI PLL锁定信号
 
         // 像素坐标输出
         .active_x(lcd_x),                           // 当前有效区域X坐标（0-1279）
@@ -374,16 +379,16 @@ module top #(
     // 使用Gowin Video Warping IP核
     // 信号映射说明:
     // - clk: 像素时钟（74.25MHz for 720p@60Hz）
-    // - clk_2: 计算时钟（通常为像素时钟的2倍，这里暂用相同时钟）
+    // - clk_2: 计算时钟，为像素时钟的2倍（148.5MHz），从TMDS_PLL的clkout2输出
     // - Hsync_in: 实际上是数据有效信号（DE），不是行同步
     // - RGB输入输出都是8位，需要与RGB565格式进行转换
     //   输入：RGB565 -> 8位RGB（低位补0）
     //   输出：8位RGB -> RGB565（取高位）
     Video_Warping_Top u_video_warping (
         // 时钟和复位
-        .clk                (video_clk        ),      // 输入时钟信号，作为像素时钟
-        .clk_2              (video_clk        ),      // 输入时钟信号，作为计算时钟，为像素时钟的2倍（这里用相同时钟）
-        .rstn               (init_calib_complete),    // 复位信号，低电平有效
+        .clk                (video_clk        ),      // 输入时钟信号，作为像素时钟 (74.25MHz)
+        .clk_2              (video_clk_2x     ),      // 输入时钟信号，作为计算时钟，为像素时钟的2倍 (148.5MHz)
+        .rstn               (hdmi4_rst_n      ),      // 复位信号，低电平有效，使用HDMI PLL锁定信号
         
         // 输入视频流（RGB565转8位RGB）
         .Vsync_in           (syn_off0_vs      ),      // 输入场同步信号
@@ -409,16 +414,14 @@ module top #(
     //==============================================================================
     //TMDS TX(HDMI4)
     wire serial_clk;
-    wire hdmi4_rst_n;
 
     TMDS_PLL u_tmds_pll(
         .clkin     (clk              ),
-        .clkout0   (serial_clk       ),
-        .clkout1   (video_clk        ),
+        .clkout0   (serial_clk       ),  // 371.25MHz (5x pixel clock for TMDS)
+        .clkout1   (video_clk        ),  // 74.25MHz (pixel clock for 720p@60Hz)
+        .clkout2   (video_clk_2x     ),  // 148.5MHz (2x pixel clock for warping)
         .lock      (TMDS_DDR_pll_lock)
         );
-
-    assign hdmi4_rst_n = rst_n & TMDS_DDR_pll_lock;
 
     wire dvi0_rgb_clk;
     wire dvi0_rgb_vs ;
