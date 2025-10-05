@@ -1,13 +1,13 @@
 -series GW5AST
--device GW5AST-138B
+-device GW5AST-138
 -device_version B
 -package FCPBGA676A
 -part_number GW5AST-LV138FPG676AES
 
 
--mod_name Gowin_PLL
--file_name gowin_pll_400M
--path C:/Users/Think/Documents/FPGA_Project/Gowin/Cam2HDMI_Fan_NEO/Cam2HDMI/src/gowin_pll/
+-mod_name Gowin_PLL_MOD
+-file_name gowin_pll_400M_mod
+-path D:/Projects/FPGA_projects/cam2hdmi_v2-1/cam2dvi/src/gowin_pll/
 -type PLL_ADV
 -file_type vlg
 -ssc false
@@ -22,6 +22,8 @@
 -clkfb_sel 0
 -dyn_fbdiv_sel false
 -fbdiv_sel 1
+-dyn_icp_sel true
+-dyn_lpf_sel true
 -en_lock true
 -dyn_dpa_en false
 -clkout0_bypass false

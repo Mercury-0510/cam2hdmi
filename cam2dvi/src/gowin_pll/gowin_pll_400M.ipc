@@ -170,3 +170,5 @@ PLLPowerDown=false
 PLLReset=true
 clkfbExternal=false
 clkfbExternalValue=
+ClkfbDivideFactorDynamicValue=1
+Initialization_Clock_Frequency=50

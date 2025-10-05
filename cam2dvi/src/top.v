@@ -48,13 +48,9 @@ module top #(
     `define	USE_THREE_FRAME_BUFFER
     `define	DEF_ADDR_WIDTH 29 
     `define	DEF_SRAM_DATA_WIDTH 256
-    `define	DEF_WR_VIDEO_WIDTH 32
-    `define	DEF_RD_VIDEO_WIDTH 32
     
     parameter ADDR_WIDTH          = `DEF_ADDR_WIDTH;        //存储单元是byte，总容量=2^29*16bit = 8Gbit,增加1位rank地址，{rank[0],bank[2:0],row[15:0],cloumn[9:0]}
     parameter DATA_WIDTH          = `DEF_SRAM_DATA_WIDTH;   //与生成DDR3IP有关，此ddr3 4Gbit, x32， 时钟比例1:4 ，则固定256bit
-    parameter WR_VIDEO_WIDTH      = `DEF_WR_VIDEO_WIDTH;  
-    parameter RD_VIDEO_WIDTH      = `DEF_RD_VIDEO_WIDTH;
 
     // ==================== 信号定义 ====================
     //memory interface
@@ -83,7 +79,7 @@ module top #(
     wire                      syn_off0_hs;
 
     wire                      off0_syn_de  ;
-    wire [RD_VIDEO_WIDTH-1:0] off0_syn_data;
+    wire [15:0] off0_syn_data;
 
     wire[15:0]                      cmos_16bit_data;
     wire                            cmos_16bit_clk;
@@ -300,7 +296,7 @@ module top #(
         .I_vout0_vs_n         (~syn_off0_vs     ),      // 输出垂直同步信号（负极性）
         .I_vout0_de           (out_de           ),      // 输出数据使能请求
         .O_vout0_den          (off0_syn_de      ),      // 输出数据有效信号
-        .O_vout0_data         (off0_syn_data    ),      // 输出视频数据（32位）
+        .O_vout0_data         (off0_syn_data    ),      // 输出视频数据（16位）
         .O_vout0_fifo_empty   (                 ),      // 输出FIFO空标志（未连接）
         
         // DDR3内存访问接口（连接到DDR3控制器）
