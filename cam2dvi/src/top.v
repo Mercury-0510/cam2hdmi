@@ -155,7 +155,6 @@ module top (
     Gowin_PLL Gowin_PLL_m0(
     	.clkin                     (clk                         ),
     	.clkout0                   (cmos_clk 	              	),
-        .clkout0duty               (                            ),
         .clkout2                   (memory_clk 	              	),
     	.lock 					   (DDR_pll_lock 				),
         .reset                     (1'b0                        ),
