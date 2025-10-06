@@ -16,8 +16,8 @@ module vga_timing#(
 		output                vs,            //垂直同步信号
 		output                de,            //视频有效信号
 
-		output reg [9:0] active_x,           //当前像素的x坐标
-		output reg [9:0] active_y            //当前像素的y坐标
+		output reg [11:0] active_x,           //当前像素的x坐标
+		output reg [11:0] active_y            //当前像素的y坐标
 	
 	);
 

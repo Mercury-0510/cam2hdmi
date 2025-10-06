@@ -1,7 +1,4 @@
-module top #(
-    //Note: USE DDR3 with 400MHz: enable file [DDR3MI_400M.v] & [gowin_pll_400M.v], 
-    //                            disable [DDR3MI_300M.v] & [gowin_pll_300M.v] (USE 300M Reverse operation)
-)(
+module top (
     input                  clk,
 	input                  rst_n,
 	inout                  cmos_scl,       //cmos i2c clock
@@ -73,21 +70,21 @@ module top #(
     wire                   TMDS_DDR_pll_lock  ;
     wire                   pll_stop           ;
 
-    wire                        video_clk;     //video pixel clock (74.25MHz)
-    wire                        video_clk_2x;  //video clock x2 for warping (148.5MHz)
-    wire                      syn_off0_vs;
-    wire                      syn_off0_hs;
+    wire                            video_clk       ;     //video pixel clock (74.25MHz)
+    wire                            video_clk_2x    ;  //video clock x2 for warping (148.5MHz)
+    
+    wire                            syn_off0_vs     ;
+    wire                            syn_off0_hs     ;
+    wire                            off0_syn_de     ;
+    wire[31:0]                      off0_syn_data   ;
 
-    wire                      off0_syn_de  ;
-    wire [15:0] off0_syn_data;
+    wire[15:0]                      cmos_16bit_data ;
+    wire                            cmos_16bit_clk  ;
+    wire                            cmos_16bit_wr   ;
+    wire[15:0] 						write_data      ;
 
-    wire[15:0]                      cmos_16bit_data;
-    wire                            cmos_16bit_clk;
-    wire                            cmos_16bit_wr;
-    wire[15:0] 						write_data;
-
-    wire[9:0]                       lut_index;
-    wire[31:0]                      lut_data;
+    wire[9:0]                       lut_index       ;
+    wire[31:0]                      lut_data        ;
     wire i2c_done;
 
     // ==================== CMOS控制信号 ====================
@@ -158,7 +155,7 @@ module top #(
     Gowin_PLL Gowin_PLL_m0(
     	.clkin                     (clk                         ),
     	.clkout0                   (cmos_clk 	              	),
-        .clkout1                   ( 	              	        ), // aux_clk未使用
+        .clkout0duty               (                            ),
         .clkout2                   (memory_clk 	              	),
     	.lock 					   (DDR_pll_lock 				),
         .reset                     (1'b0                        ),
@@ -167,7 +164,7 @@ module top #(
         .enclk2                    (pll_stop                    ) //input enclk2
 	);
 
-    // CMOS复位逻辑（变量已在前面声明）
+    // CMOS复位逻辑）
     always@(posedge clk or negedge rst_n)
     begin
         if(!rst_n)
@@ -240,7 +237,7 @@ module top #(
     //The video output timing generator and generate a frame read data request
     //输出
     wire out_de;
-    wire [9:0] lcd_x,lcd_y;
+    wire [11:0] lcd_x,lcd_y;
 
 
     // ==================== VGA时序生成模块 ====================
