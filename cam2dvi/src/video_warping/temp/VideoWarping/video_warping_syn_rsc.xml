@@ -1,2 +1,2 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<Module name="Video_Warping_Top" Register="3546" Alu="1424" Lut="2925" MULTALU27X18="31" MULT27X36="3" MULTADDALU12X12="3" Bsram="240" T_Register="3546(3546)" T_Alu="1424(1424)" T_Lut="2925(2925)" T_MULTALU27X18="31(31)" T_MULT27X36="3(3)" T_MULTADDALU12X12="3(3)" T_Bsram="240(240)"/>
+<Module name="Video_Warping_Top" Register="3546" Alu="1424" Lut="2953" MULTALU27X18="31" MULT27X36="3" MULTADDALU12X12="3" Bsram="240" T_Register="3546(3546)" T_Alu="1424(1424)" T_Lut="2953(2953)" T_MULTALU27X18="31(31)" T_MULT27X36="3(3)" T_MULTADDALU12X12="3(3)" T_Bsram="240(240)"/>
