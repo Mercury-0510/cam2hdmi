@@ -16,8 +16,8 @@ module vga_timing#(
 	output                vs,            //vertical synchronization
 	output                de,            //video valid
 
-	output reg [11:0] active_x,           //video x position 
-	output reg [11:0] active_y            //video y position 
+	output reg [9:0] active_x,           //video x position 
+	output reg [9:0] active_y            //video y position 
 	
 	);
 

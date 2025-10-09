@@ -1,6 +1,4 @@
-module top #(
-    parameter WARPING = "false"
-)(
+module top (
 	input                  clk,
 	input                  rst_n,
 	inout                  cmos_scl,       //cmos i2c clock
@@ -39,30 +37,6 @@ module top #(
     output [2:0]           tmds_d_p_0
 
 );
-    
-    assign i2c_sel = 'b101;
-
-//memory interface
-    wire                   memory_clk         ;
-    wire                   dma_clk         	  ;
-    wire                   DDR_pll_lock       ;
-    wire                   cmd_ready          ;
-    wire[2:0]              cmd                ;
-    wire                   cmd_en             ;
-    //wire[5:0]              app_burst_number   ;
-    wire[ADDR_WIDTH-1:0]   addr               ;
-    wire                   wr_data_rdy        ;
-    wire                   wr_data_en         ;//
-    wire                   wr_data_end        ;//
-    wire[DATA_WIDTH-1:0]   wr_data            ;   
-    wire[DATA_WIDTH/8-1:0] wr_data_mask       ;   
-    wire                   rd_data_valid      ;  
-    wire                   rd_data_end        ;//unused 
-    wire[DATA_WIDTH-1:0]   rd_data            ;   
-    wire                   init_calib_complete;
-    wire                   err;
-    wire TMDS_DDR_pll_lock;
-
     //According to IP parameters to choose
     `define	    WR_VIDEO_WIDTH_32
     `define	DEF_WR_VIDEO_WIDTH 32
@@ -74,17 +48,36 @@ module top #(
 
     `define	DEF_ADDR_WIDTH 29 
     `define	DEF_SRAM_DATA_WIDTH 256
-    
-    //=========================================================
+
     //SRAM parameters
     parameter ADDR_WIDTH          = `DEF_ADDR_WIDTH;        //存储单元是byte，总容量=2^29*16bit = 8Gbit,增加1位rank地址，{rank[0],bank[2:0],row[15:0],cloumn[9:0]}
     parameter DATA_WIDTH          = `DEF_SRAM_DATA_WIDTH;   //与生成DDR3IP有关，此ddr3 4Gbit, x32， 时钟比例1:4 ，则固定256bit
     parameter WR_VIDEO_WIDTH      = `DEF_WR_VIDEO_WIDTH;  
     parameter RD_VIDEO_WIDTH      = `DEF_RD_VIDEO_WIDTH;  
 
-    wire                            video_clk;  //video pixel clock
-    //-------------------
-    //syn_code
+    assign i2c_sel = 'b101;
+
+    // 内存信号
+    wire                   memory_clk         ;
+    wire                   dma_clk         	  ;
+    wire                   DDR_pll_lock       ;
+    wire                   cmd_ready          ;
+    wire[2:0]              cmd                ;
+    wire                   cmd_en             ;
+    wire[ADDR_WIDTH-1:0]   addr               ;
+    wire                   wr_data_rdy        ;
+    wire                   wr_data_en         ;
+    wire                   wr_data_end        ;
+    wire[DATA_WIDTH-1:0]   wr_data            ;   
+    wire[DATA_WIDTH/8-1:0] wr_data_mask       ;   
+    wire                   rd_data_valid      ;  
+    wire                   rd_data_end        ;//unused 
+    wire[DATA_WIDTH-1:0]   rd_data            ;   
+    wire                   init_calib_complete;
+    wire                   err                ;
+    wire                   TMDS_DDR_pll_lock  ;
+
+    wire                        video_clk;  //video pixel clock
     wire                      syn_off0_re;      // ofifo read enable signal
     wire                      syn_off0_vs;
     wire                      syn_off0_hs;
@@ -101,13 +94,12 @@ module top #(
     wire i2c_done;
     wire i2c_err;
 
+    // 对外输出
     assign cmos_xclk = cmos_clk;
     assign cmos_pwdn = 1'b0;
-//    assign cmos_rst_n = 1'b1;
     assign cmos_rst_n = cmos_reset;
+
     assign write_data = cmos_16bit_data;
-    //assign write_data = {cmos_16bit_data[4:0],cmos_16bit_data[10:5],cmos_16bit_data[15:11]};
-    //assign hdmi_hpd = 1;
 
     reg [4:0] cmos_vs_cnt;
     always@(posedge cmos_vsync) 
@@ -217,7 +209,6 @@ module top #(
     	.i2c_scl                    (cmos_scl                 ),
     	.i2c_sda                    (cmos_sda                 )
     );
-    
 
     //CMOS sensor 8bit data is converted to 16bit data
     cmos_8_16bit cmos_8_16bit_m0(
@@ -231,9 +222,8 @@ module top #(
     );
 
     //The video output timing generator and generate a frame read data request
-    //输出
     wire out_de;
-    wire [11:0] lcd_x,lcd_y;
+    wire [9:0] lcd_x,lcd_y;
 
     vga_timing #(
         .H_ACTIVE(16'd1280), 
@@ -257,7 +247,7 @@ module top #(
         .vs(syn_off0_vs),
         .de(out_de)
     );
-
+    
     Video_Frame_Buffer_Top Video_Frame_Buffer_Top_inst
     ( 
         .I_rst_n              (init_calib_complete ),
@@ -266,12 +256,14 @@ module top #(
         .I_wr_halt            (1'd0             ), //1:halt,  0:no halt
         .I_rd_halt            (1'd0             ), //1:halt,  0:no halt
     `endif
+
         // video data input       
         .I_vin0_clk           (cmos_16bit_clk   ),
         .I_vin0_vs_n          (~cmos_vsync      ),//只接收负极性
         .I_vin0_de            (cmos_16bit_wr    ),
         .I_vin0_data          (write_data       ),
         .O_vin0_fifo_full     (                 ),
+
         // video data output            
         .I_vout0_clk          (video_clk        ),
         .I_vout0_vs_n         (~syn_off0_vs     ),//只接收负极性
@@ -283,7 +275,6 @@ module top #(
         .I_cmd_ready          (cmd_ready          ),
         .O_cmd                (cmd                ),//0:write;  1:read
         .O_cmd_en             (cmd_en             ),
-    //    .O_app_burst_number   (app_burst_number   ),
         .O_addr               (addr               ),//[ADDR_WIDTH-1:0]
         .I_wr_data_rdy        (wr_data_rdy        ),
         .O_wr_data_en         (wr_data_en         ),//
@@ -303,7 +294,6 @@ module top #(
         .pll_stop           (pll_stop           ),
         .pll_lock           (DDR_pll_lock       ),
         .rst_n              (rst_n              ),
-    //    .app_burst_number   (app_burst_number   ),
         .cmd_ready          (cmd_ready          ),
         .cmd                (cmd                ),
         .cmd_en             (cmd_en             ),
@@ -342,47 +332,19 @@ module top #(
         .IO_ddr_dqs_n       (ddr_dqs_n        )
     );
 
-	Video_Warping_Top Video_Warping_Top_0(
-		.clk                (video_clk          ), //input clk
-		.clk_2              (serial_clk         ), //input clk_2
-		.rstn               (rstn               ), //input rstn
-		.Vsync_in           (lcd_vs             ), //input Vsync_in
-		.Hsync_in           (lcd_hs             ), //input Hsync_in
-		.R_din              ({lcd_r,3'd0}       ), //input [7:0] R_din
-		.G_din              ({lcd_g,2'd0}       ), //input [7:0] G_din
-		.B_din              ({lcd_b,3'd0}       ), //input [7:0] B_din
-
-		.wr                 (                   ), //input wr
-		.waddr              (                   ), //input [15:0] waddr
-		.wdata              (                   ), //input [31:0] wdata
-
-		.Vsync_out          (wp_vs          ), //output Vsync_out
-		.Hsync_out          (wp_hs          ), //output Hsync_out
-		.DE_out             (wp_de          ), //output DE_out
-		.R_dout             (wp_r           ), //output [7:0] R_dout
-		.G_dout             (wp_g           ), //output [7:0] G_dout
-		.B_dout             (wp_b           ) //output [7:0] B_dout
-	);
-    
-    //==============================================================================
-    //TMDS TX(HDMI4)
-    // 畸变后的信号
-    wire [7:0] wp_r, wp_g, wp_b;
-    wire wp_vs, wp_hs, wp_de;    
-    //---------------------------------------------
     wire [4:0] lcd_r,lcd_b;
     wire [5:0] lcd_g;
     wire lcd_vs,lcd_de,lcd_hs,lcd_dclk;
-    
-    reg  [1:0]  Pout_hs_dn;
-    reg  [1:0]  Pout_vs_dn;
-    reg  [1:0]  Pout_de_dn;
     
     assign {lcd_r,lcd_g,lcd_b}    = off0_syn_de ? off0_syn_data[15:0] : 16'h0000;//{r,g,b}
     assign lcd_vs      			  = Pout_vs_dn[1];//syn_off0_vs;
     assign lcd_hs      			  = Pout_hs_dn[1];//syn_off0_hs;
     assign lcd_de      			  = Pout_de_dn[1];//off0_syn_de;
     assign lcd_dclk    			  = video_clk;//video_clk_phs;
+
+    reg  [1:0]  Pout_hs_dn;
+    reg  [1:0]  Pout_vs_dn;
+    reg  [1:0]  Pout_de_dn;
 
     always@(posedge video_clk or negedge rst_n)
     begin
@@ -420,8 +382,6 @@ module top #(
     wire [7:0] dvi0_rgb_g  ;
     wire [7:0] dvi0_rgb_b  ;
 
-generate
-if(WARPING == "false") begin
     assign dvi0_rgb_clk = lcd_dclk;
     assign dvi0_rgb_vs  = lcd_vs;
     assign dvi0_rgb_hs  = lcd_hs;
@@ -429,16 +389,7 @@ if(WARPING == "false") begin
     assign dvi0_rgb_r   = {lcd_r,3'd0};
     assign dvi0_rgb_g   = {lcd_g,2'd0};
     assign dvi0_rgb_b   = {lcd_b,3'd0};
-end else begin
-    assign dvi0_rgb_clk = lcd_dclk;
-    assign dvi0_rgb_vs  = wp_vs;
-    assign dvi0_rgb_hs  = wp_hs;
-    assign dvi0_rgb_de  = wp_de;
-    assign dvi0_rgb_r   = wp_r;
-    assign dvi0_rgb_g   = wp_g;
-    assign dvi0_rgb_b   = wp_b;
-end
-endgenerate
+
     DVI_TX_Top DVI_TX_Top_inst0
     (
         .I_rst_n       (hdmi4_rst_n   ),  //asynchronous reset, low active
